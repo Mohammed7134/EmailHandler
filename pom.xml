@@ -37,7 +37,7 @@
             <version>2.23.4</version>
             <scope>test</scope>
         </dependency>
-          <!-- Azure Functions Java Library -->
+        <!-- Azure Functions Java Library -->
         <dependency>
             <groupId>com.microsoft.azure.functions</groupId>
             <artifactId>azure-functions-java-library</artifactId>
@@ -71,6 +71,17 @@
             <artifactId>slf4j-jdk14</artifactId>
             <version>1.7.30</version>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.17.2</version> <!-- or latest -->
+        </dependency>
+        <dependency>
+            <groupId>com.microsoft.graph</groupId>
+            <artifactId>microsoft-graph</artifactId>
+            <version>5.68.0</version> <!-- latest stable -->
+        </dependency>
+
     </dependencies>
 
     <build>

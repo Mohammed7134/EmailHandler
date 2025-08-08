@@ -2,7 +2,9 @@ package com.function;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.logging.Level;
@@ -16,6 +18,7 @@ import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.annotation.FunctionName;
 import com.microsoft.azure.functions.annotation.TimerTrigger;
@@ -27,6 +30,7 @@ import microsoft.exchange.webservices.data.core.service.item.EmailMessage;
 import microsoft.exchange.webservices.data.core.service.item.Item;
 import microsoft.exchange.webservices.data.property.complex.Attachment;
 import microsoft.exchange.webservices.data.property.complex.FileAttachment;
+import microsoft.exchange.webservices.data.property.complex.MessageBody;
 import microsoft.exchange.webservices.data.search.FindItemsResults;
 import microsoft.exchange.webservices.data.search.ItemView;
 
@@ -110,24 +114,62 @@ public class EmailHandler {
                 }
 
                 // Proceed only if all 3 files were downloaded
-                    logger.info("Sending files to external API...");
-                    callCustomApiWithMultipleFiles(apiEndpoint, ExpiriesFile, DetailedFile, BreifFile, logger);
-              
+                logger.info("Sending files to external API...");
+                String htmlContent = callCustomApiWithMultipleFiles(apiEndpoint, ExpiriesFile, DetailedFile, BreifFile, logger);
+
+               if (htmlContent != null) {
+                    logger.info("Got HTML content from API, storing or sending email...");
+                    
+
+                    // Create reply
+                    EmailMessage reply = new EmailMessage(service);
+                    reply.setSubject("Processed Catalogue");
+
+                    // Set email body
+                    MessageBody body = MessageBody.getMessageBodyFromText(htmlContent);
+                    reply.setBody(body);
+                    reply.getToRecipients().add(email.getFrom().getAddress());
+
+                    // Add HTML file as attachment
+                    String fileName = "processed_catalogue.html";
+                    byte[] htmlBytes = htmlContent.getBytes(StandardCharsets.UTF_8);
+                    reply.getAttachments().addFileAttachment(fileName, htmlBytes);
+
+                    logger.info("Attached HTML file: " + fileName);
+
+                    // Send email
+                    reply.send();
+                }
+
+
+
 
                 // Mark as read
                 email.setIsRead(true);
                 email.update(ConflictResolutionMode.AlwaysOverwrite);
 
                 // Clean up
-                // for (File file : files) {
-                //     if (file != null && file.exists()) {
-                //         if (file.delete()) {
-                //             logger.info("Deleted temp file: " + file.getAbsolutePath());
-                //         } else {
-                //             logger.warning("Failed to delete temp file: " + file.getAbsolutePath());
-                //         }
-                //     }
-                // }
+                    if (ExpiriesFile != null && ExpiriesFile.exists()) {
+                        if (ExpiriesFile.delete()) {
+                            logger.info("Deleted temp file: " + ExpiriesFile.getAbsolutePath());
+                        } else {
+                            logger.warning("Failed to delete temp file: " + ExpiriesFile.getAbsolutePath());
+                        }
+                    }
+                    if (DetailedFile != null && DetailedFile.exists()) {
+                        if (DetailedFile.delete()) {
+                            logger.info("Deleted temp file: " + DetailedFile.getAbsolutePath());
+                        } else {
+                            logger.warning("Failed to delete temp file: " + DetailedFile.getAbsolutePath());
+                        }
+                    }
+                    if (BreifFile != null && BreifFile.exists()) {
+                        if (BreifFile.delete()) {
+                            logger.info("Deleted temp file: " + BreifFile.getAbsolutePath());
+                        } else {
+                            logger.warning("Failed to delete temp file: " + BreifFile.getAbsolutePath());
+                        }
+                    }
             }
 
         } catch (Exception e) {
@@ -135,7 +177,7 @@ public class EmailHandler {
         }
     }
 
-    private void callCustomApiWithMultipleFiles(String apiEndpoint, File expiriesFile, File detailedFile, File breifFile, Logger logger) {
+    private String callCustomApiWithMultipleFiles(String apiEndpoint, File expiriesFile, File detailedFile, File breifFile, Logger logger) {
     try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
         HttpPost uploadRequest = new HttpPost(apiEndpoint);
 
@@ -150,11 +192,22 @@ public class EmailHandler {
         try (CloseableHttpResponse response = httpClient.execute(uploadRequest)) {
             int statusCode = response.getStatusLine().getStatusCode();
             logger.info("Custom API responded with status: " + statusCode);
-        }
 
+            if (statusCode == 200) {
+                String jsonResponse = new String(response.getEntity().getContent().readAllBytes());
+                logger.info("API Response: " + jsonResponse);
+
+                // Parse JSON and extract "html"
+                ObjectMapper mapper = new ObjectMapper();
+                java.util.Map<String, String> map = mapper.readValue(jsonResponse, java.util.Map.class);
+                return map.get("html");
+            }
+        }
     } catch (Exception e) {
         logger.log(Level.SEVERE, "Failed to send files to custom API", e);
     }
+    return null;
 }
+
 
 }
