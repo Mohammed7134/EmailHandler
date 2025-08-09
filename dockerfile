@@ -1,19 +1,27 @@
-# Stage 1: Build the JAR using Maven
-FROM maven:3.9.4-eclipse-temurin-17 AS build
+FROM mcr.microsoft.com/openjdk/jdk:17-ubuntu
+
+# Install Node.js (needed by Azure Functions Core Tools)
+RUN apt-get update && apt-get install -y curl gnupg git && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs
+
+# Install Azure Functions Core Tools
+RUN npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+# Install Maven
+RUN apt-get install -y maven
+
+# Set working directory
 WORKDIR /app
 
-# Copy everything (src/, pom.xml, etc.)
+# Copy project
 COPY . .
 
-# Build the JAR (skip tests optionally)
-RUN mvn clean package -DskipTests
+# Build
+RUN mvn clean package
 
-# Stage 2: Run the app using a lighter image
-FROM eclipse-temurin:17-jdk-alpine
-WORKDIR /app
+# Expose Azure Functions default port
+EXPOSE 7071
 
-# Copy the built JAR from stage 1
-COPY --from=build /app/target/*.jar app.jar
-
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Run Azure Functions
+CMD ["mvn", "azure-functions:run"]
