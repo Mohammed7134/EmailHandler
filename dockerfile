@@ -1,3 +1,4 @@
+# Stage 1: Build the jar with Maven
 FROM maven:3.9.4-eclipse-temurin-17 AS build
 
 WORKDIR /app
@@ -5,16 +6,15 @@ WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 
-RUN mvn clean package
+RUN mvn clean package -DskipTests
 
-# Debug: list build output
-RUN ls -l /app/target/azure-functions/
+# Stage 2: Run the app
+FROM eclipse-temurin:17-jre-alpine
 
-FROM mcr.microsoft.com/azure-functions/java:4-java17
+WORKDIR /app
 
-ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
-    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
-
-COPY --from=build /app/target/azure-functions/EmailHandler-1754558016609/ /home/site/wwwroot/
+COPY --from=build /app/target/EmailHandler-1.0-SNAPSHOT.jar ./app.jar
 
 EXPOSE 7071
+
+CMD ["java", "-jar", "app.jar"]
