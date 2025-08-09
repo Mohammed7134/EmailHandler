@@ -17,11 +17,11 @@ WORKDIR /app
 # Copy project
 COPY . .
 
-# Build
+# Build the project
 RUN mvn clean package
 
 # Expose Azure Functions default port
 EXPOSE 7071
 
-# Run Azure Functions
+# Run Azure Functions locally inside container
 CMD ["mvn", "azure-functions:run"]
