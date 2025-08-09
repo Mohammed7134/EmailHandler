@@ -1,24 +1,28 @@
-FROM mcr.microsoft.com/openjdk/jdk:17-ubuntu
+# Use a base image with Java 17 and Maven installed
+FROM maven:3.8.7-openjdk-17 AS build
 
-# Install dependencies: Node.js, Maven, and libicu for Azure Functions Core Tools
-RUN apt-get update && apt-get install -y curl gnupg git libicu-dev && \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs maven
-
-# Install Azure Functions Core Tools
-RUN npm install -g azure-functions-core-tools@4 --unsafe-perm true
-
-# Set working directory
+# Set working directory inside container
 WORKDIR /app
 
-# Copy project
-COPY . .
+# Copy your pom.xml and source code
+COPY pom.xml .
+COPY src ./src
 
-# Build the project
+# Build your project and package Azure Functions
 RUN mvn clean package
 
-# Expose Azure Functions default port
+# Use the official Azure Functions Java runtime image for running the function app
+FROM mcr.microsoft.com/azure-functions/java:4-java17
+
+# Set environment variables for the function app
+ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
+
+# Copy the built function app from the build stage to the runtime location
+COPY --from=build /app/target/azure-functions/EmailHandler-*/ /home/site/wwwroot/
+
+# Expose the Azure Functions port
 EXPOSE 7071
 
-# Run Azure Functions
-CMD ["mvn", "azure-functions:run"]
+# Start the Azure Functions host
+CMD [ "java", "-jar", "/azure-functions-host/Microsoft.Azure.Functions.Host.dll" ]
