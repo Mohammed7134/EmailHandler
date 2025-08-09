@@ -1,20 +1,19 @@
-# Stage 1: Build the jar with Maven
+# Stage 1: Build the JAR using Maven
 FROM maven:3.9.4-eclipse-temurin-17 AS build
-
 WORKDIR /app
 
-COPY pom.xml .
-COPY src ./src
+# Copy everything (src/, pom.xml, etc.)
+COPY . .
 
+# Build the JAR (skip tests optionally)
 RUN mvn clean package -DskipTests
 
-# Stage 2: Run the app
-FROM eclipse-temurin:17-jre-alpine
-
+# Stage 2: Run the app using a lighter image
+FROM eclipse-temurin:17-jdk-alpine
 WORKDIR /app
 
-COPY --from=build /app/target/EmailHandler-1.0-SNAPSHOT.jar ./app.jar
+# Copy the built JAR from stage 1
+COPY --from=build /app/target/*.jar app.jar
 
-EXPOSE 7071
-
-CMD ["java", "-jar", "app.jar"]
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "app.jar"]
